@@ -1,14 +1,14 @@
 const app = require("./app");
-const connectDatabase = require('./config/database');
-const dotenv = require("dotenv");
-dotenv.config();
+require("dotenv").config();
 
 process.on("uncaughtException", (err) => {
-  console.log(err);
+  console.log(`Error: ${err.message}`);
   process.exit(1);
 });
 
-connectDatabase();
+
+// Connect Database
+
 
 const http = require("http");
 
