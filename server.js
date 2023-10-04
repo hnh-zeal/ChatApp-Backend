@@ -15,15 +15,16 @@ const http = require("http");
 
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 4000;
 
 server.listen(PORT, () => {
   console.log(`App is running on port ${PORT}`);
 });
 
 process.on("unhandledRejection", (err) => {
-  console.log(err);
+  console.log(`Error: ${err}`);
   server.close(() => {
     process.exit(1);
   });
 });
+  

@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
 const userSchema = new mongoose.Schema({
-  firistName: {
+  firstName: {
     type: String,
     required: [true, "First Name is required!"],
   },
@@ -61,22 +61,24 @@ const userSchema = new mongoose.Schema({
   },
 });
 
-userSchema.pre("save", async (next) => {
+userSchema.pre("save", async function (next) {
   // Only Run this function if OTP is updated
   if (!this.isModified("otp")) return next();
 
   // Hash the OTP with the cost of 12
-  this.otp = await bcrypt.hash(this.otp, 12);
+  this.otp = await bcrypt.hash(this.otp.toString(), 12);
+
+  // console.log(this.otp.toString(), "FROM PRE SAVE HOOK");
 
   next();
 });
 
-userSchema.pre("save", async (next) => {
+userSchema.pre("save", async function (next) {
   // Only Run this function if Password is updated
   if (!this.isModified("password")) return next();
 
   // Hash the OTP with the cost of 12
-  this.password = await bcrypt.hash(this.otp, 12);
+  this.password = await bcrypt.hash(this.password, 12);
 
   next();
 });

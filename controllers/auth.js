@@ -1,24 +1,27 @@
 const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
+const otpTemplate = require("../Templates/Mail/otp");
+const mailService = require("../services/mailer");
 const crypto = require("crypto");
 
-//
+// Model
 const User = require("../models/user");
+
+// Utils
 const filterObject = require("../utils/filterObject");
 const { promisify } = require("util");
 
 const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET);
 
 // Signup => register => send OTP => verifyOTP
-//
 
 // Register New User
 exports.register = async (req, res, next) => {
-  const [firistName, lastName, email, password] = req.body;
+  const { firstName, lastName, email, password } = req.body;
 
   const filterBody = filterObject(
     req.body,
-    "firistName",
+    "firstName",
     "lastName",
     "email",
     "password"
@@ -54,7 +57,7 @@ exports.register = async (req, res, next) => {
 // Send OTP
 exports.sendOTP = async (req, res, next) => {
   const { userId } = req;
-  const new_OTP = otpGenerator.generate(6, {
+  const new_otp = otpGenerator.generate(6, {
     lowerCaseAlphabets: false,
     upperCaseAlphabets: false,
     specialChars: false,
@@ -62,12 +65,28 @@ exports.sendOTP = async (req, res, next) => {
 
   const otp_expiry_time = Date.now() + 10 * 60 * 1000; // 10 minutes after OTP is sent
 
-  await User.findByIdAndUpdate(userId, {
-    otp: new_otp,
+  const user = await User.findByIdAndUpdate(userId, {
     otp_expiry_time,
   });
 
+  user.otp = new_otp.toString();
+
+  await user.save({ new: true, validateModifiedOnly: true });
+
+  // console.log("New OTP:", new_otp);
+
   // TODO Send Mail
+  await mailService
+    .sendEmail({
+      from: "htetnainghein7777@gmail.com",
+      to: user.email,
+      subject: "Verification OTP for Talkspire",
+      html: otpTemplate(user.firstName, new_otp),
+      attachments: [],
+    })
+    .catch((error) => {
+      console.log(error);
+    });  
 
   res.status(200).json({
     status: "Success",
@@ -194,7 +213,7 @@ exports.protect = async (req, res, next) => {
   next();
 };
 
-exports.forgetPassword = async (req, res, next) => {
+exports.forgotPassword = async (req, res, next) => {
   // Get User Email
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
