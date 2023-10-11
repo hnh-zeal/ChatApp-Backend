@@ -37,8 +37,8 @@ const developmentTransporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST,
   port: process.env.MAIL_PORT,
   secure: true,
-  logger: true,
-  debug: true,
+  // logger: true,
+  // debug: true,
   secureConnection: false,
   auth: {
     user: process.env.MAIL_ADDRESS,
@@ -82,10 +82,9 @@ const sendEmail = async (
       if (error) {
         return console.log(error);
       }
+      console.log(info);
       console.log("Message sent: %s", info.messageId);
       console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
-      // Message sent: <b658f8ca-6296-ccf4-8306-87d57a0b4321@example.com>
-      // Preview URL: https://ethereal.email/message/WaQKMgKddxQDoou...
     });
   } else {
     await production_Transporter.sendMail(msg, (error) => {

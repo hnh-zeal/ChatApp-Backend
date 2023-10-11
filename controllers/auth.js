@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
 const otpTemplate = require("../Templates/Mail/otp");
+const resetPassword = require("../Templates/Mail/resetPassword");
 const mailService = require("../services/mailer");
 const crypto = require("crypto");
 
@@ -73,8 +74,6 @@ exports.sendOTP = async (req, res, next) => {
 
   await user.save({ new: true, validateModifiedOnly: true });
 
-  // console.log("New OTP:", new_otp);
-
   // TODO Send Mail
   await mailService
     .sendEmail({
@@ -86,7 +85,7 @@ exports.sendOTP = async (req, res, next) => {
     })
     .catch((error) => {
       console.log(error);
-    });  
+    });
 
   res.status(200).json({
     status: "Success",
@@ -98,21 +97,29 @@ exports.sendOTP = async (req, res, next) => {
 exports.verifyOTP = async (req, res, next) => {
   // verify OTP and update User record accordingly
 
-  const { email, OTP } = req.body;
+  const { email, otp } = req.body;
+
   const user = await User.findOne({
     email,
     otp_expiry_time: { $gt: Date.now() },
   });
 
   if (!user) {
-    res.status(400).json({
+    return res.status(400).json({
       status: "Error",
       message: "Email is invalid or OTP is expired!",
     });
   }
 
-  if (!(await user.correctOTP(OTP, user.otp))) {
-    res.status(400).json({
+  if (user.verified) {
+    return res.status(400).json({
+      status: "Error",
+      message: "Email is already verified",
+    });
+  }
+
+  if (!(await user.correctOTP(otp, user.otp))) {
+    return res.status(400).json({
       status: "Error",
       message: "Invalid OTP!",
     });
@@ -140,7 +147,7 @@ exports.login = async (req, res, next) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    res.status(400).json({
+    return res.status(400).json({
       status: "Error",
       message: "Both email and password are required!",
     });
@@ -149,7 +156,7 @@ exports.login = async (req, res, next) => {
   const user = await User.findOne({ email: email }).select("+password");
 
   if (!user || !(await user.correctPassword(password, user.password))) {
-    res.status(400).json({
+    return res.status(400).json({
       status: "Error",
       message: "Email or password is incorrect!",
     });
@@ -217,19 +224,32 @@ exports.forgotPassword = async (req, res, next) => {
   // Get User Email
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
-    res.status(400).json({
+    return res.status(400).json({
       status: "error",
       message: "There is no user with given email address",
     });
-    return;
   }
 
   // Generate Random Reset Token
-  const resetToken = user.createPasswordResetToken();
+  const resetToken = await user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false });
 
-  const resetURL = `http://talkspire.com/auth/reset-password/?code=${resetToken}`;
   try {
-    // TODO => Send Email With Reset URL
+    const resetURL = `http://localhost:3000/auth/new-password?token=${resetToken}`;
+
+    // Send Email With Reset URL
+    await mailService
+      .sendEmail({
+        from: "htetnainghein7777@gmail.com",
+        to: user.email,
+        subject: "Reset Password",
+        html: resetPassword(user.firstName, resetURL),
+        attachments: [],
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+
     res.status(200).json({
       status: "success",
       message: "Reset Password Link sent to Email!",
@@ -248,12 +268,14 @@ exports.forgotPassword = async (req, res, next) => {
 };
 
 exports.resetPassword = async (req, res, next) => {
+  console.log(req.body.token);
   // Get User based on Token
   const hashedToken = crypto
     .createHash("sha256")
-    .update(req.params.token)
+    .update(req.body.token)
     .digest("hex");
 
+  console.log(hashedToken);
   const user = await User.findOne({
     passwordResetToken: hashedToken,
     passwordResetExpires: { $gt: Date.now() },
@@ -261,16 +283,15 @@ exports.resetPassword = async (req, res, next) => {
 
   // If Token has expired or Submitted token out of time
   if (!user) {
-    res.status(400).json({
+    return res.status(400).json({
       status: "Error",
       message: "Token is invalid or expired!",
     });
-    return;
   }
 
   // Update User's password and set resetToken & expiry_time to undefined
   user.password = req.body.password;
-  user.passwordConfirm = req.body.passwordConfirm;
+  user.confirmPassword = req.body.confirmPassword;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
 
