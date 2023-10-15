@@ -74,6 +74,8 @@ exports.sendOTP = async (req, res, next) => {
 
   await user.save({ new: true, validateModifiedOnly: true });
 
+  console.log(user.email);
+
   // TODO Send Mail
   await mailService
     .sendEmail({
@@ -153,7 +155,7 @@ exports.login = async (req, res, next) => {
     });
   }
 
-  const user = await User.findOne({ email: email }).select("+password");
+  const user = await User.findOne({ email: email, verified: true }).select("+password");
 
   if (!user || !(await user.correctPassword(password, user.password))) {
     return res.status(400).json({
@@ -291,7 +293,7 @@ exports.resetPassword = async (req, res, next) => {
 
   // Update User's password and set resetToken & expiry_time to undefined
   user.password = req.body.password;
-  user.confirmPassword = req.body.confirmPassword;
+  user.confirmPassword = undefined;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
 

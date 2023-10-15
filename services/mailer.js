@@ -66,6 +66,7 @@ const sendEmail = async (
   { from, to, subject, html, text, attachments },
   status
 ) => {
+  console.log(from);
   const from_email = from || "htetnainghein2001@gmail.com";
 
   const msg = {
@@ -82,7 +83,6 @@ const sendEmail = async (
       if (error) {
         return console.log(error);
       }
-      console.log(info);
       console.log("Message sent: %s", info.messageId);
       console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
     });

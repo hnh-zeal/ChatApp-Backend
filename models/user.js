@@ -59,6 +59,13 @@ const userSchema = new mongoose.Schema({
   otp_expiry_time: {
     type: Date,
   },
+  socket_id: {
+    type: String,
+  },
+  friends: [{
+    type: mongoose.Schema.ObjectId,
+    ref: "User",
+  }],
 });
 
 userSchema.pre("save", async function (next) {
@@ -108,7 +115,7 @@ userSchema.methods.createPasswordResetToken = async function () {
 };
 
 userSchema.methods.changedPasswordAfter = async function (timestamp) {
-  return timestamp < this.passwordChangedAt
-}
+  return timestamp < this.passwordChangedAt;
+};
 
 module.exports = mongoose.model("User", userSchema);
