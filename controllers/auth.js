@@ -140,6 +140,7 @@ exports.verifyOTP = async (req, res, next) => {
     status: "Success",
     message: "OTP is verified sucessfully!",
     token,
+    user_id: user._id,
   });
 };
 
@@ -170,6 +171,7 @@ exports.login = async (req, res, next) => {
     status: "Success",
     message: "Logged in sucessfully!",
     token,
+    user_id: user._id,
   });
 };
 
