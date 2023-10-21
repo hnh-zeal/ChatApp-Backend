@@ -11,13 +11,14 @@ const User = require("../models/user");
 // Utils
 const filterObject = require("../utils/filterObject");
 const { promisify } = require("util");
+const catchAsync = require("../utils/catchAsync");
 
 const signToken = (userId) => jwt.sign({ userId }, process.env.JWT_SECRET);
 
 // Signup => register => send OTP => verifyOTP
 
 // Register New User
-exports.register = async (req, res, next) => {
+exports.register = catchAsync(async (req, res, next) => {
   const { firstName, lastName, email, password } = req.body;
 
   const filterBody = filterObject(
@@ -53,10 +54,10 @@ exports.register = async (req, res, next) => {
     req.userId = new_user._id;
     next();
   }
-};
+});
 
 // Send OTP
-exports.sendOTP = async (req, res, next) => {
+exports.sendOTP = catchAsync(async (req, res, next) => {
   const { userId } = req;
   const new_otp = otpGenerator.generate(6, {
     lowerCaseAlphabets: false,
@@ -93,10 +94,10 @@ exports.sendOTP = async (req, res, next) => {
     status: "Success",
     message: "OTP Sent Successfully!",
   });
-};
+});
 
 // Verify OTP
-exports.verifyOTP = async (req, res, next) => {
+exports.verifyOTP = catchAsync(async (req, res, next) => {
   // verify OTP and update User record accordingly
 
   const { email, otp } = req.body;
@@ -142,10 +143,10 @@ exports.verifyOTP = async (req, res, next) => {
     token,
     user_id: user._id,
   });
-};
+});
 
 // Login Validation
-exports.login = async (req, res, next) => {
+exports.login = catchAsync(async (req, res, next) => {
   //
   const { email, password } = req.body;
 
@@ -156,7 +157,9 @@ exports.login = async (req, res, next) => {
     });
   }
 
-  const user = await User.findOne({ email: email, verified: true }).select("+password");
+  const user = await User.findOne({ email: email, verified: true }).select(
+    "+password"
+  );
 
   if (!user || !(await user.correctPassword(password, user.password))) {
     return res.status(400).json({
@@ -173,11 +176,11 @@ exports.login = async (req, res, next) => {
     token,
     user_id: user._id,
   });
-};
+});
 
 // Types of routes => Protected (Only logged in users can access these)
 //                 => Unprotected
-exports.protect = async (req, res, next) => {
+exports.protect = catchAsync(async (req, res, next) => {
   // Getting JWT Token and check if it's there
 
   let token;
@@ -222,9 +225,9 @@ exports.protect = async (req, res, next) => {
   //
   req.user = this_user;
   next();
-};
+});
 
-exports.forgotPassword = async (req, res, next) => {
+exports.forgotPassword = catchAsync(async (req, res, next) => {
   // Get User Email
   const user = await User.findOne({ email: req.body.email });
   if (!user) {
@@ -269,9 +272,9 @@ exports.forgotPassword = async (req, res, next) => {
       message: "There was an error sending the email, Please Try Again Later!",
     });
   }
-};
+});
 
-exports.resetPassword = async (req, res, next) => {
+exports.resetPassword = catchAsync(async (req, res, next) => {
   console.log(req.body.token);
   // Get User based on Token
   const hashedToken = crypto
@@ -311,4 +314,4 @@ exports.resetPassword = async (req, res, next) => {
     message: "Password Reset Sucessfully!",
     token,
   });
-};
+});

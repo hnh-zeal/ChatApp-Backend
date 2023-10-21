@@ -32,7 +32,7 @@ const mongosanitize = require("express-mongo-sanitize"); // This module searches
 // - req.headers
 // - req.query
 
-const xss = require("xss-clean"); // Node.js Connect middleware to sanitize user input coming from POST body, GET queries, and url params.
+const xss = require("xss"); // Node.js Connect middleware to sanitize user input coming from POST body, GET queries, and url params.
 
 const bodyParser = require("body-parser"); // Parses incoming request bodies in a middleware before your handlers, available under the req.body property.
 
@@ -103,7 +103,7 @@ app.use(
 
 app.use(mongosanitize());
 
-app.use(xss());
+// app.use(xss());
 
 // Routes
 app.use(routes);
