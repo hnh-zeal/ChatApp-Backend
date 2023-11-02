@@ -41,19 +41,20 @@ server.listen(PORT, () => {
 
 // Listen for when the client connects via socket.io-client
 io.on("connection", async (socket) => {
-  console.log(JSON.stringify(socket.handshake.query));
+  // console.log(JSON.stringify(socket.handshake.query));
   const user_id = socket.handshake.query["user_id"];
 
   const socket_id = socket.id;
 
-  // console.log(`User Connected ${socket_id}`);
+  // console.log(`User Connected ${user_id}-${socket_id}`);
 
   if (user_id != null && Boolean(user_id)) {
     try {
-      User.findByIdAndUpdate(user_id, {
+      await User.findByIdAndUpdate(user_id, {
         socket_id: socket.id,
         status: "Online",
       });
+      // console.log(User.findById(user_id).select("socket_id"));
     } catch (e) {
       console.log(e);
     }
@@ -61,12 +62,16 @@ io.on("connection", async (socket) => {
 
   // -------------- HANDLE Friend Request and Conversation SOCKET EVENTS ----------------- //
   socket.on("friend_request", async (data) => {
-    console.log(data.to);
+    // console.log(data);
 
     // {to: "user_id", from}
 
-    const to_user = await User.findById(data.to).select("socket_id");
-    const from_user = await User.findById(data.from).select("socket_id");
+    const to_user = await User.findById(data.to).select(
+      "socket_id firstName lastName"
+    );
+    const from_user = await User.findById(data.from).select(
+      "socket_id firstName lastName"
+    );
 
     // Create a friend request
     await FriendRequest.create({
@@ -75,6 +80,7 @@ io.on("connection", async (socket) => {
     });
 
     // emit event => "new_friend_request"
+    console.log(to_user?.socket_id);
     io.to(to_user?.socket_id).emit("new_friend_request", {
       message: "New Friend Request Received!",
     });
@@ -115,8 +121,6 @@ io.on("connection", async (socket) => {
       participants: { $all: [user_id] },
     }).populate("participants", "firstName lastName _id email status");
 
-    console.log(conversations);
-
     callback(conversations);
   });
 
@@ -129,7 +133,7 @@ io.on("connection", async (socket) => {
       participants: { $size: 2, $all: [to, from] },
     }).populate("participants", "firstName lastName _id email status");
 
-    console.log(existing_conversation[0], "Existing Conversation");
+    // console.log(existing_conversation[0], "Existing Conversation");
 
     // if no existing_conversation
     if (existing_conversation.length === 0) {
@@ -151,10 +155,14 @@ io.on("connection", async (socket) => {
 
   socket.on("get_messages", async (data, callback) => {
     try {
-      const { messages } = await Conversation.findById(
-        data.conversation_id
-      ).select("messages");
-      callback(messages);
+      if (data.conversation_id) {
+        const { messages } = await Conversation.findById(
+          data.conversation_id
+        ).select("messages");
+        callback(messages);
+      } else {
+        console.log("There is no conversations");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -198,7 +206,7 @@ io.on("connection", async (socket) => {
 
   socket.on("file_message", async (data) => {
     // data => { to, from, text, file }
-    console.log("Received Message:", data);
+    // console.log("Received Message:", data);
 
     // get the file extension
     const fileExtension = path.extname(data.file.name);

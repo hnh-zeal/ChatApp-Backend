@@ -11,12 +11,12 @@ const appID = process.env.ZEGO_APP_ID;
 
 const serverSecret = process.env.ZEGO_SERVER_SECRET; // type: 32 byte length string
 
-exports.getMe = catchAsync(async (req, res, next) => {
+exports.getMe = async (req, res, next) => {
   res.status(200).json({
     status: "success",
     data: req.user,
   });
-});
+};
 
 exports.updateProfile = catchAsync(async (req, res, next) => {
   const { user } = req;
@@ -41,7 +41,7 @@ exports.updateProfile = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getUsers = catchAsync(async (req, res, next) => {
+exports.getUsers = async (req, res, next) => {
   const all_users = await User.find({
     verified: true,
   }).select("firstName lastName _id");
@@ -59,7 +59,7 @@ exports.getUsers = catchAsync(async (req, res, next) => {
     data: remaining_users,
     message: "Users found successfully!",
   });
-});
+};
 
 exports.getAllVerifiedUsers = catchAsync(async (req, res, next) => {
   const all_users = await User.find({
@@ -78,12 +78,14 @@ exports.getAllVerifiedUsers = catchAsync(async (req, res, next) => {
 });
 
 exports.getRequests = catchAsync(async (req, res, next) => {
-  const requests = await FriendRequest.find({
-    recipient: req.user._id,
-  }).populate("sender", "_id, firstName lastName");
+  const requests = await FriendRequest.find({ recipient: req.user._id })
+    .populate("sender")
+    .select("_id firstName lastName");
 
+  console.log(requests);
+  
   res.status(200).json({
-    status: "Success",
+    status: "success",
     data: requests,
     message: "Requests found successfully!",
   });

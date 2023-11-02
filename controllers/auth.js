@@ -146,7 +146,7 @@ exports.verifyOTP = catchAsync(async (req, res, next) => {
 });
 
 // Login Validation
-exports.login = catchAsync(async (req, res, next) => {
+exports.login = async (req, res, next) => {
   //
   const { email, password } = req.body;
 
@@ -160,6 +160,15 @@ exports.login = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email: email, verified: true }).select(
     "+password"
   );
+
+  if (!user || !user.password) {
+    res.status(400).json({
+      status: "error",
+      message: "Incorrect password",
+    });
+
+    return;
+  }
 
   if (!user || !(await user.correctPassword(password, user.password))) {
     return res.status(400).json({
@@ -176,11 +185,11 @@ exports.login = catchAsync(async (req, res, next) => {
     token,
     user_id: user._id,
   });
-});
+};
 
 // Types of routes => Protected (Only logged in users can access these)
 //                 => Unprotected
-exports.protect = catchAsync(async (req, res, next) => {
+exports.protect = async (req, res, next) => {
   // Getting JWT Token and check if it's there
 
   let token;
@@ -189,7 +198,7 @@ exports.protect = catchAsync(async (req, res, next) => {
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
-    token = req.headers.authorization.split(" ")[1];
+    token = req.headers.authorization.split(" ")  [1];
   } else if (req.cookies.jwt) {
     token = req.cookies.jwt;
   } else {
@@ -222,10 +231,9 @@ exports.protect = catchAsync(async (req, res, next) => {
     });
   }
 
-  //
   req.user = this_user;
   next();
-});
+};
 
 exports.forgotPassword = catchAsync(async (req, res, next) => {
   // Get User Email
