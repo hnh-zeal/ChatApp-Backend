@@ -59,6 +59,7 @@ exports.register = catchAsync(async (req, res, next) => {
 // Send OTP
 exports.sendOTP = catchAsync(async (req, res, next) => {
   const { userId } = req;
+  console.log(userId);
   const new_otp = otpGenerator.generate(6, {
     lowerCaseAlphabets: false,
     upperCaseAlphabets: false,
@@ -75,15 +76,13 @@ exports.sendOTP = catchAsync(async (req, res, next) => {
 
   await user.save({ new: true, validateModifiedOnly: true });
 
-  console.log(user.email);
-
   // TODO Send Mail
   await mailService
     .sendEmail({
       from: "htetnainghein7777@gmail.com",
       to: user.email,
       subject: "Verification OTP for Talkspire",
-      html: otpTemplate(user.firstName, new_otp),
+      html: otpTemplate(user?.firstName, new_otp),
       attachments: [],
     })
     .catch((error) => {
@@ -101,6 +100,8 @@ exports.verifyOTP = catchAsync(async (req, res, next) => {
   // verify OTP and update User record accordingly
 
   const { email, otp } = req.body;
+
+  console.log("Requested Email", email);
 
   const user = await User.findOne({
     email,
@@ -198,8 +199,9 @@ exports.protect = async (req, res, next) => {
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
-    token = req.headers.authorization.split(" ")  [1];
+    token = req.headers.authorization.split(" ")[1];
   } else if (req.cookies.jwt) {
+    console.log(req.cookies.jwt);
     token = req.cookies.jwt;
   } else {
     req.status(400).json({

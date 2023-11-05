@@ -57,7 +57,6 @@ app.use(
     //   Access-Control-Allow-Credentials is a header that, when set to true , tells browsers to expose the response to the frontend JavaScript code. The credentials consist of cookies, authorization headers, and TLS client certificates.
   })
 );
-
 app.use(cookieParser());
 
 // Setup express response and body parser configurations

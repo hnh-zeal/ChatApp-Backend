@@ -73,22 +73,33 @@ io.on("connection", async (socket) => {
       "socket_id firstName lastName"
     );
 
-    // Create a friend request
-    await FriendRequest.create({
-      sender: data.from,
-      recipient: data.to,
+    const friendRequest = await FriendRequest.findOne({
+      sender: from_user,
+      recipient: to_user,
     });
 
-    // emit event => "new_friend_request"
-    console.log(to_user?.socket_id);
-    io.to(to_user?.socket_id).emit("new_friend_request", {
-      message: "New Friend Request Received!",
-    });
+    if (!friendRequest) {
+      // Create a friend request
+      await FriendRequest.create({
+        sender: data.from,
+        recipient: data.to,
+      });
 
-    // emit event => "request_sent"
-    io.to(from_user?.socket_id).emit("request_sent", {
-      message: "Friend Request Sent!",
-    });
+      // emit event => "new_friend_request"
+      io.to(to_user?.socket_id).emit("new_friend_request", {
+        message: "New Friend Request Received!",
+      });
+
+      // emit event => "request_sent"
+      io.to(from_user?.socket_id).emit("request_sent", {
+        message: "Friend Request Sent!",
+      });
+    } else {
+      // emit event => "request_sent"
+      io.to(from_user?.socket_id).emit("request_sent", {
+        message: "Friend Request is already Sent!",
+      });
+    }
   });
 
   socket.on("accept_request", async (data) => {
@@ -116,6 +127,25 @@ io.on("connection", async (socket) => {
     });
   });
 
+  socket.on("cancel_request", async (data) => {
+    // cancel friend request => delete the friend Requests
+    const request_doc = await FriendRequest.findById(data.request_id);
+
+    // console.log(request_doc);
+
+    const sender = await User.findById(request_doc.sender);
+    
+    await request_doc.deleteOne({ _id: request_doc._id });
+
+    io.to(sender?.socket_id).emit("request_accepted", {
+      message: "Friend Request Cancelled!",
+    });
+
+    // io.to(recipient?.socket_id).emit("request_accepted", {
+    //   message: "Friend Request Accepted!",
+    // });
+  });
+
   socket.on("get_conversations", async ({ user_id }, callback) => {
     const conversations = await Conversation.find({
       participants: { $all: [user_id] },
@@ -132,8 +162,6 @@ io.on("connection", async (socket) => {
     const existing_conversation = await Conversation.find({
       participants: { $size: 2, $all: [to, from] },
     }).populate("participants", "firstName lastName _id email status");
-
-    // console.log(existing_conversation[0], "Existing Conversation");
 
     // if no existing_conversation
     if (existing_conversation.length === 0) {

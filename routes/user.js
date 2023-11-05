@@ -23,6 +23,11 @@ router.get(
   authController.protect,
   userController.getRequests
 );
+router.get(
+  "/get-sent-requests",
+  authController.protect,
+  userController.sentRequests
+);
 
 router.post("/start-audio-call", authController.protect, userController.startAudioCall);
 router.post("/start-video-call", authController.protect, userController.startVideoCall);

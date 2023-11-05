@@ -41,17 +41,27 @@ exports.updateProfile = catchAsync(async (req, res, next) => {
   });
 });
 
+// This is from Explore Users => Return users who has not sent requests to current user
 exports.getUsers = async (req, res, next) => {
+  const friendRequests = await FriendRequest.find({
+    $or: [{ recipient: req.user._id }, { sender: req.user._id }],
+  });
+
   const all_users = await User.find({
-    verified: true,
+    $and: [
+      { verified: true }, // Users must have verified: true
+      { _id: { $ne: req.user._id } }, // Exclude the current user
+      { _id: { $nin: friendRequests.map((user) => user.recipient._id) } }, // Exclude users in sent_requests
+      { _id: { $nin: friendRequests.map((user) => user.sender._id) } }, // Exclude users in requests
+    ],
   }).select("firstName lastName _id");
+
+  // console.log("All Users", all_users);
 
   const this_user = req.user;
 
   const remaining_users = all_users.filter(
-    (user) =>
-      !this_user.friends.includes(user._id) &&
-      user._id.toString() !== req.user._id.toString()
+    (user) => !this_user.friends.includes(user._id)
   );
 
   res.status(200).json({
@@ -82,8 +92,22 @@ exports.getRequests = catchAsync(async (req, res, next) => {
     .populate("sender")
     .select("_id firstName lastName");
 
-  console.log(requests);
-  
+  // console.log(requests);
+
+  res.status(200).json({
+    status: "success",
+    data: requests,
+    message: "Requests found successfully!",
+  });
+});
+
+exports.sentRequests = catchAsync(async (req, res, next) => {
+  const requests = await FriendRequest.find({ sender: req.user._id })
+    .populate("recipient")
+    .select("_id firstName lastName");
+
+  console.log("Requests", requests);
+
   res.status(200).json({
     status: "success",
     data: requests,
