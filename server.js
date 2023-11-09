@@ -35,7 +35,7 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 4000;
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`App is running on port ${PORT}`);
 });
 
@@ -155,8 +155,9 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("start_conversation", async (data) => {
-    // data: {to, from}
     const { to, from } = data;
+    // console.log("to", to);
+    // console.log("from", from);
 
     // Check if there is an existing conversation between to and from
     const existing_conversation = await Conversation.find({
@@ -164,10 +165,20 @@ io.on("connection", async (socket) => {
     }).populate("participants", "firstName lastName _id email status");
 
     // if no existing_conversation
+    // console.log(existing_conversation); 
     if (existing_conversation.length === 0) {
       let new_chat = await Conversation.create({
         participants: [to, from],
       });
+
+      const to_user = await User.findById(to);
+      const from_user = await User.findById(from);
+
+      to_user.conversations.push(new_chat);
+      from_user.conversations.push(new_chat);
+
+      await to_user.save({ new: true, validateModifiedOnly: true });
+      await from_user.save({ new: true, validateModifiedOnly: true });
 
       new_chat = await Conversation.findById(new_chat._id).populate(
         "participants",
@@ -199,7 +210,6 @@ io.on("connection", async (socket) => {
   // Handle Text/Link Messages
   socket.on("text_message", async (data) => {
     // data: { to, from, message, conversation_id, type }
-
     const { to, from, message, conversation_id, type } = data;
 
     const to_user = await User.findById(to);
@@ -213,7 +223,7 @@ io.on("connection", async (socket) => {
       created_at: Date.now(),
     };
     // create a new conversation if it doesn't exist or add new messages to the messages list
-    const conversation = await Conversation.findById(conversation_id);
+    const conversation = await Conversation.findById(conversation_id).populate("participants", "firstName lastName _id email status");;
     conversation.messages.push(new_message);
 
     // save to db
@@ -221,13 +231,13 @@ io.on("connection", async (socket) => {
 
     // emit incoming_message => to user
     io.to(to_user?.socket_id).emit("new_message", {
-      conversation_id,
+      conversation,
       message: new_message,
     });
 
     // emit outgoing message => from user
     io.to(from_user?.socket_id).emit("new_message", {
-      conversation_id,
+      conversation,
       message: new_message,
     });
   });

@@ -14,6 +14,9 @@ const userSchema = new mongoose.Schema({
   avatar: {
     type: String,
   },
+  bio: {
+    type: String,
+  },
   email: {
     type: String,
     required: [true, "Email is required!"],
@@ -66,6 +69,12 @@ const userSchema = new mongoose.Schema({
     {
       type: mongoose.Schema.ObjectId,
       ref: "User",
+    },
+  ],
+  conversations: [
+    {
+      type: mongoose.Schema.ObjectId,
+      ref: "Conversation",
     },
   ],
   status: {

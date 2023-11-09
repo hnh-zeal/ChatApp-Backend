@@ -1,4 +1,5 @@
 const AudioCall = require("../models/audioCall");
+const Conversation = require("../models/conversation");
 const FriendRequest = require("../models/friendRequest");
 const User = require("../models/user");
 const VideoCall = require("../models/videoCall");
@@ -12,20 +13,30 @@ const appID = process.env.ZEGO_APP_ID;
 const serverSecret = process.env.ZEGO_SERVER_SECRET; // type: 32 byte length string
 
 exports.getMe = async (req, res, next) => {
+  const conversations = await Conversation.find({
+    $and: [
+      { participants: { $elemMatch: { $eq: req.user._id } } },
+      { messages: { $not: { $size: 0 } } }
+    ]
+  }).populate("participants", "firstName lastName _id email status");
+
   res.status(200).json({
     status: "success",
-    data: req.user,
+    data: {
+      user: req.user,
+      conversations: conversations,
+    },
   });
 };
 
 exports.updateProfile = catchAsync(async (req, res, next) => {
   const { user } = req;
 
-  const filterBody = filterObject(
+  const filterBody = filterObj(
     req.body,
-    "firistName",
+    "firstName",
     "lastName",
-    "about",
+    "bio",
     "avatar"
   );
 

@@ -17,6 +17,10 @@ const conversationSchema = new mongoose.Schema({
       file: { type: String },
     },
   ],
+  chat_type: {
+    type: String,
+    enum: ["group", "individual"],
+  },
 });
 
 const Conversation = new mongoose.model("Conversation", conversationSchema);
