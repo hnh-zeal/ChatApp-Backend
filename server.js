@@ -1,6 +1,7 @@
 const app = require("./app");
 const connectDatabase = require("./database/database");
 const dotenv = require("dotenv");
+const mongoose = require("mongoose");
 dotenv.config();
 
 const path = require("path");
@@ -44,17 +45,12 @@ io.on("connection", async (socket) => {
   // console.log(JSON.stringify(socket.handshake.query));
   const user_id = socket.handshake.query["user_id"];
 
-  const socket_id = socket.id;
-
-  // console.log(`User Connected ${user_id}-${socket_id}`);
-
   if (user_id != null && Boolean(user_id)) {
     try {
       await User.findByIdAndUpdate(user_id, {
         socket_id: socket.id,
         status: "Online",
       });
-      // console.log(User.findById(user_id).select("socket_id"));
     } catch (e) {
       console.log(e);
     }
@@ -134,7 +130,7 @@ io.on("connection", async (socket) => {
     // console.log(request_doc);
 
     const sender = await User.findById(request_doc.sender);
-    
+
     await request_doc.deleteOne({ _id: request_doc._id });
 
     io.to(sender?.socket_id).emit("request_accepted", {
@@ -147,60 +143,93 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("get_conversations", async ({ user_id }, callback) => {
-    const conversations = await Conversation.find({
-      participants: { $all: [user_id] },
-    }).populate("participants", "firstName lastName _id email status");
-
+    const userObjectId = new mongoose.Types.ObjectId(user_id);
+    const conversations = await User.aggregate([
+      {
+        $match: {
+          _id: userObjectId,
+        },
+      },
+      {
+        $lookup: {
+          from: "conversations",
+          localField: "conversations",
+          foreignField: "_id",
+          as: "conversationsData",
+        },
+      },
+      {
+        $project: {
+          conversations: "$conversationsData",
+        },
+      },
+      {
+        $unwind: "$conversations",
+      },
+      {
+        $addFields: {
+          lastMessage: { $slice: ["$conversations.messages", -1] },
+        },
+      },
+      {
+        $sort: { "lastMessage.created_at": -1 },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "conversations.participants",
+          foreignField: "_id",
+          as: "participantsData",
+        },
+      },
+      {
+        $project: {
+          _id: "$conversations._id",
+          participants: "$participantsData",
+          messages: "$conversations.messages",
+          lastMessage: 1,
+        },
+      },
+    ]);
     callback(conversations);
   });
 
   socket.on("start_conversation", async (data) => {
     const { to, from } = data;
-    // console.log("to", to);
-    // console.log("from", from);
 
     // Check if there is an existing conversation between to and from
-    const existing_conversation = await Conversation.find({
-      participants: { $size: 2, $all: [to, from] },
+    const existingConversation = await Conversation.findOne({
+      participants: { $all: [to, from], $size: 2 },
     }).populate("participants", "firstName lastName _id email status");
 
-    // if no existing_conversation
-    // console.log(existing_conversation); 
-    if (existing_conversation.length === 0) {
-      let new_chat = await Conversation.create({
-        participants: [to, from],
-      });
+    const contact = await User.findById(to);
 
-      const to_user = await User.findById(to);
-      const from_user = await User.findById(from);
+    const returnData = {
+      new_chat:
+        existingConversation ||
+        (await Conversation.create({ participants: [to, from] })),
+      contact,
+    };
 
-      to_user.conversations.push(new_chat);
-      from_user.conversations.push(new_chat);
+    returnData.new_chat = await Conversation.findById(
+      returnData.new_chat._id
+    ).populate("participants", "firstName lastName _id email status");
 
-      await to_user.save({ new: true, validateModifiedOnly: true });
-      await from_user.save({ new: true, validateModifiedOnly: true });
-
-      new_chat = await Conversation.findById(new_chat._id).populate(
-        "participants",
-        "firstName lastName _id email status"
-      );
-      socket.emit("open_chat", new_chat);
-    }
-    // if conversation exists
-    else {
-      socket.emit("open_chat", existing_conversation[0]);
-    }
+    socket.emit("open_chat", returnData);
   });
 
-  socket.on("get_messages", async (data, callback) => {
+  socket.on("get_current_conversation", async (data, callback) => {
     try {
-      if (data.conversation_id) {
+      if (data.conversation_id && data.user_id) {
         const { messages } = await Conversation.findById(
           data.conversation_id
         ).select("messages");
-        callback(messages);
-      } else {
-        console.log("There is no conversations");
+
+        const contact_user = await User.findById(data.user_id);
+        callback({
+          messages: messages,
+          contact: contact_user,
+        });
       }
     } catch (error) {
       console.log(error);
@@ -222,8 +251,23 @@ io.on("connection", async (socket) => {
       text: message,
       created_at: Date.now(),
     };
+
     // create a new conversation if it doesn't exist or add new messages to the messages list
-    const conversation = await Conversation.findById(conversation_id).populate("participants", "firstName lastName _id email status");;
+    const conversation = await Conversation.findById(conversation_id);
+
+    if (!to_user.conversations.includes(conversation._id)) {
+      to_user.conversations.push(conversation);
+      await to_user.save({ new: true, validateModifiedOnly: true });
+    }
+    if (!from_user.conversations.includes(conversation._id)) {
+      from_user.conversations.push(conversation);
+      await from_user.save({ new: true, validateModifiedOnly: true });
+    }
+
+    conversation.populate(
+      "participants",
+      "_id firstName lastName email status"
+    );
     conversation.messages.push(new_message);
 
     // save to db
@@ -260,6 +304,43 @@ io.on("connection", async (socket) => {
     // save to db
     // emit incoming_message => to user
     // emit outgoing message => from user
+  });
+
+  socket.on("clear_messages", async (data, callback) => {
+    const { user_id, conversation_id } = data;
+    const userObjectId = new mongoose.Types.ObjectId(user_id);
+    const conversationId = new mongoose.Types.ObjectId(conversation_id);
+
+    // Delete the messages from conversation with conversationId
+    const updatedConversation = await Conversation.findOneAndUpdate(
+      { _id: conversationId },
+      { $set: { messages: [] } },
+      { new: true }
+    );
+    callback(updatedConversation);
+  });
+
+  socket.on("delete_conversation", async (data) => {
+    const { user_id, conversation_id } = data;
+
+    const userObjectId = new mongoose.Types.ObjectId(user_id);
+    const conversationId = new mongoose.Types.ObjectId(conversation_id);
+
+    // Delete the conversation from both users
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+    });
+
+    console.log(conversation.participants);
+
+    const users = await User.updateMany(
+      { _id: { $in: conversation.participants } },
+      {
+        $pull: { conversations: conversationId },
+      },
+      { new: true }
+    );
+    // console.log(users);
   });
   // ---------------------------------------------------------------- //
 

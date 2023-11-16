@@ -13,12 +13,54 @@ const appID = process.env.ZEGO_APP_ID;
 const serverSecret = process.env.ZEGO_SERVER_SECRET; // type: 32 byte length string
 
 exports.getMe = async (req, res, next) => {
-  const conversations = await Conversation.find({
-    $and: [
-      { participants: { $elemMatch: { $eq: req.user._id } } },
-      { messages: { $not: { $size: 0 } } }
-    ]
-  }).populate("participants", "firstName lastName _id email status");
+
+  const conversations = await User.aggregate([
+    {
+      $match: {
+        _id: req.user._id,
+      },
+    },
+    {
+      $lookup: {
+        from: 'conversations', // Assuming the name of the conversations collection
+        localField: 'conversations',
+        foreignField: '_id',
+        as: 'conversationsData',
+      },
+    },
+    {
+      $project: {
+        conversations: '$conversationsData',
+      },
+    },
+    {
+      $unwind: '$conversations',
+    },
+    {
+      $addFields: {
+        lastMessage: { $slice: ['$conversations.messages', -1] },
+      },
+    },
+    {
+      $sort: { 'lastMessage.created_at': -1 },
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'conversations.participants',
+        foreignField: '_id',
+        as: 'participantsData',
+      },
+    },
+    {
+      $project: {
+        _id: '$conversations._id',
+        participants: '$participantsData',
+        messages: '$conversations.messages',
+        lastMessage: 1,
+      },
+    },
+  ]);
 
   res.status(200).json({
     status: "success",
@@ -116,8 +158,6 @@ exports.sentRequests = catchAsync(async (req, res, next) => {
   const requests = await FriendRequest.find({ sender: req.user._id })
     .populate("recipient")
     .select("_id firstName lastName");
-
-  console.log("Requests", requests);
 
   res.status(200).json({
     status: "success",
